@@ -1,0 +1,13 @@
+# Maven
+/target/
+
+# macOS
+.DS_Store
+
+# Build / Distribuição
+dist/
+*.app
+
+# Ícones gerados
+*.icns
+*.iconset/
