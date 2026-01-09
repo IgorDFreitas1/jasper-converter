@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import static com.conversor.controller.LogController.sendLog;
 import com.conversor.service.JasperConversorService;
 
 @RestController
@@ -25,51 +26,62 @@ public class ConversaoController {
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<byte[]> converter(@RequestParam("file") MultipartFile file)
-            throws Exception {
+    public ResponseEntity<byte[]> converter(@RequestParam("file") MultipartFile file) {
 
-        // 1. Obter o nome original e preparar o nome de saída (.jrxml)
+        // 1️⃣ Validação inicial
+        if (file == null || file.isEmpty()) {
+            sendLog("❌ Nenhum arquivo enviado");
+            return ResponseEntity.badRequest().body(null);
+        }
+
         String originalFilename = file.getOriginalFilename();
-        String outputFilename = "arquivo_convertido.jrxml"; // Nome padrão caso o original falhe
-
-        if (file.isEmpty() || !file.getOriginalFilename().endsWith(".jasper")) {
-            return ResponseEntity.badRequest().build();
-        }
-        
-        if (originalFilename != null && !originalFilename.isEmpty()) {
-            // Remove a extensão original (ex: .jasper) e adiciona .jrxml
-            int lastDotIndex = originalFilename.lastIndexOf(".");
-            if (lastDotIndex != -1) {
-                outputFilename = originalFilename.substring(0, lastDotIndex) + ".jrxml";
-            } else {
-                outputFilename = originalFilename + ".jrxml";
-            }
+        if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".jasper")) {
+            sendLog("❌ Arquivo inválido: " + originalFilename);
+            return ResponseEntity.badRequest().body(null);
         }
 
-        // 2. Criar arquivo .jasper temporário para processamento
-        File tempJasper = File.createTempFile("upload-", ".jasper");
-        file.transferTo(tempJasper);
+        // 2️⃣ Nome do arquivo de saída
+        String outputFilename =
+                originalFilename.substring(0, originalFilename.lastIndexOf(".")) + ".jrxml";
 
-        // 3. Criar arquivo .jrxml temporário para receber a conversão
-        File tempJrxml = File.createTempFile("result-", ".jrxml");
+        File tempJasper = null;
+        File tempJrxml = null;
 
         try {
-            // 4. Executa a conversão através do service
+            sendLog("📄 Arquivo recebido: " + originalFilename);
+
+            // 3️⃣ Criar arquivos temporários
+            tempJasper = File.createTempFile("upload-", ".jasper");
+            tempJrxml = File.createTempFile("result-", ".jrxml");
+
+            file.transferTo(tempJasper);
+
+            sendLog("⚙️ Iniciando conversão...");
+
+            // 4️⃣ Converter
             service.converter(tempJasper, tempJrxml);
 
-            // 5. Lê os bytes do arquivo convertido
+            sendLog("✅ Conversão finalizada");
+
+            // 5️⃣ Retornar arquivo
             byte[] jrxmlBytes = Files.readAllBytes(tempJrxml.toPath());
 
-            // 6. Retorna o arquivo com o nome original (com extensão .jrxml)
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + outputFilename + "\"")
+                    .header(
+                            HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + outputFilename + "\""
+                    )
                     .contentType(MediaType.APPLICATION_XML)
                     .body(jrxmlBytes);
 
+        } catch (Exception e) {
+            sendLog("❌ Erro durante a conversão: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(null);
+
         } finally {
-            // 7. Garante a limpeza dos arquivos temporários no servidor
-            if (tempJasper.exists()) tempJasper.delete();
-            if (tempJrxml.exists()) tempJrxml.delete();
+            // 6️⃣ Limpeza
+            if (tempJasper != null && tempJasper.exists()) tempJasper.delete();
+            if (tempJrxml != null && tempJrxml.exists()) tempJrxml.delete();
         }
     }
 }

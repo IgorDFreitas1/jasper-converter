@@ -11,7 +11,7 @@ public class CorsConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
             .allowedOrigins(
-                "https://jasper2jrxml.netlify.app",
+                "https://jasperconverter.netlify.app",
                 "http://localhost:8080"
             )
             .allowedMethods("*")
