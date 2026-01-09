@@ -32,6 +32,10 @@ public class ConversaoController {
         String originalFilename = file.getOriginalFilename();
         String outputFilename = "arquivo_convertido.jrxml"; // Nome padrão caso o original falhe
 
+        if (file.isEmpty() || !file.getOriginalFilename().endsWith(".jasper")) {
+            return ResponseEntity.badRequest().build();
+        }
+        
         if (originalFilename != null && !originalFilename.isEmpty()) {
             // Remove a extensão original (ex: .jasper) e adiciona .jrxml
             int lastDotIndex = originalFilename.lastIndexOf(".");
