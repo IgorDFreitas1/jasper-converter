@@ -1,5 +1,7 @@
 package com.conversor.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -15,8 +17,11 @@ import org.springframework.web.multipart.MultipartFile;
 import com.conversor.service.JasperConversorService;
 
 @RestController
-@RequestMapping("/api/converter") // <--- Atenção: Isso define o prefixo da URL
+@RequestMapping("/api/converter")
 public class ConversaoController {
+
+    // 1. Cria o Logger profissional
+    private static final Logger logger = LoggerFactory.getLogger(ConversaoController.class);
 
     private final JasperConversorService service;
 
@@ -24,36 +29,36 @@ public class ConversaoController {
         this.service = service;
     }
 
-    // ✅ NOVO ENDPOINT DE SAÚDE (Adicione aqui)
-    // A URL final será: /api/converter/health
     @GetMapping("/health")
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("OK");
     }
 
-    // 👇 SEU ENDPOINT DE CONVERSÃO JÁ EXISTENTE
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Resource> converter(@RequestParam("file") MultipartFile file) {
         
-        // 1. Validações básicas
+        // Validações
         if (file == null || file.isEmpty()) {
+            logger.warn("Tentativa de upload sem arquivo.");
             return ResponseEntity.badRequest().build();
         }
 
         String fileName = file.getOriginalFilename();
         if (fileName == null || !fileName.toLowerCase().endsWith(".jasper")) {
+            logger.warn("Arquivo inválido recebido: {}", fileName);
             return ResponseEntity.badRequest().build();
         }
 
         try {
-            // 2. Chama o serviço (versão em memória que ajustamos)
+            logger.info("Iniciando conversão para o arquivo: {}", fileName);
+
             byte[] jrxmlBytes = service.convertToJrxml(file.getInputStream());
             ByteArrayResource resource = new ByteArrayResource(jrxmlBytes);
 
-            // 3. Define nome do arquivo de saída
             String outputFileName = fileName.replace(".jasper", ".jrxml");
 
-            // 4. Retorna para download
+            logger.info("Conversão bem-sucedida: {}", outputFileName);
+
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + outputFileName + "\"")
                     .contentType(MediaType.APPLICATION_XML)
@@ -61,7 +66,9 @@ public class ConversaoController {
                     .body(resource);
 
         } catch (Exception e) {
-            e.printStackTrace(); // Log no console do Railway
+            // 2. Log de erro limpo, sem stack trace gigante no console
+            logger.error("Erro durante a conversão do arquivo {}: {}", fileName, e.getMessage());
+            // Emite apenas a mensagem do erro, não a pilha toda
             return ResponseEntity.internalServerError().build();
         }
     }
