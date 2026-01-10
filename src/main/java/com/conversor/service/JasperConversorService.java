@@ -1,41 +1,30 @@
 package com.conversor.service;
 
-import java.io.File;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 
 import org.springframework.stereotype.Service;
 
-import static com.conversor.controller.LogController.sendLog;
-
-import net.sf.jasperreports.engine.JRException;
-import net.sf.jasperreports.engine.JasperCompileManager;
 import net.sf.jasperreports.engine.JasperReport;
 import net.sf.jasperreports.engine.util.JRLoader;
+import net.sf.jasperreports.engine.xml.JRXmlWriter;
 
 @Service
 public class JasperConversorService {
 
-    public File converter(File jasperFile, File destinoJrxml) throws JRException {
+    /**
+     * Converte um InputStream (.jasper) para byte[] (.jrxml)
+     */
+    public byte[] convertToJrxml(InputStream inputStream) throws Exception {
+        // 1. Carrega o objeto Jasper compilado da memória
+        JasperReport jasperReport = (JasperReport) JRLoader.loadObject(inputStream);
 
-        try {
-            sendLog("📄 Arquivo recebido: " + jasperFile.getName());
+        // 2. Prepara um fluxo de saída na memória
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-            JasperReport report =
-                    (JasperReport) JRLoader.loadObject(jasperFile);
+        // 3. Escreve o XML (JRXML) no fluxo de saída
+        JRXmlWriter.writeReport(jasperReport, outputStream, "UTF-8");
 
-            sendLog("⚙️ Convertendo arquivo...");
-
-            JasperCompileManager.writeReportToXmlFile(
-                    report,
-                    destinoJrxml.getAbsolutePath()
-            );
-
-            sendLog("✅ Conversão finalizada com sucesso");
-
-            return destinoJrxml;
-
-        } catch (JRException e) {
-            sendLog("❌ Erro durante a conversão: " + e.getMessage());
-            throw e;
-        }
+        return outputStream.toByteArray();
     }
 }

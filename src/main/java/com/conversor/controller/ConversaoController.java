@@ -1,8 +1,7 @@
 package com.conversor.controller;
 
-import java.io.File;
-import java.nio.file.Files;
-
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import static com.conversor.controller.LogController.sendLog;
 import com.conversor.service.JasperConversorService;
 
 @RestController
@@ -26,62 +24,34 @@ public class ConversaoController {
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<byte[]> converter(@RequestParam("file") MultipartFile file) {
-
-        // 1️⃣ Validação inicial
+    public ResponseEntity<Resource> converter(@RequestParam("file") MultipartFile file) {
+        
+        // Validação básica
         if (file == null || file.isEmpty()) {
-            sendLog("❌ Nenhum arquivo enviado");
-            return ResponseEntity.badRequest().body(null);
+            return ResponseEntity.badRequest().build();
         }
 
-        String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".jasper")) {
-            sendLog("❌ Arquivo inválido: " + originalFilename);
-            return ResponseEntity.badRequest().body(null);
+        String fileName = file.getOriginalFilename();
+        if (fileName == null || !fileName.toLowerCase().endsWith(".jasper")) {
+            return ResponseEntity.badRequest().build(); // Ou retorne uma mensagem de erro customizada
         }
-
-        // 2️⃣ Nome do arquivo de saída
-        String outputFilename =
-                originalFilename.substring(0, originalFilename.lastIndexOf(".")) + ".jrxml";
-
-        File tempJasper = null;
-        File tempJrxml = null;
 
         try {
-            sendLog("📄 Arquivo recebido: " + originalFilename);
+            // Conversão em Memória (Rápida e sem disco)
+            byte[] jrxmlBytes = service.convertToJrxml(file.getInputStream());
+            ByteArrayResource resource = new ByteArrayResource(jrxmlBytes);
 
-            // 3️⃣ Criar arquivos temporários
-            tempJasper = File.createTempFile("upload-", ".jasper");
-            tempJrxml = File.createTempFile("result-", ".jrxml");
-
-            file.transferTo(tempJasper);
-
-            sendLog("⚙️ Iniciando conversão...");
-
-            // 4️⃣ Converter
-            service.converter(tempJasper, tempJrxml);
-
-            sendLog("✅ Conversão finalizada");
-
-            // 5️⃣ Retornar arquivo
-            byte[] jrxmlBytes = Files.readAllBytes(tempJrxml.toPath());
+            String outputFileName = fileName.replace(".jasper", ".jrxml");
 
             return ResponseEntity.ok()
-                    .header(
-                            HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + outputFilename + "\""
-                    )
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + outputFileName + "\"")
                     .contentType(MediaType.APPLICATION_XML)
-                    .body(jrxmlBytes);
+                    .contentLength(resource.contentLength())
+                    .body(resource);
 
         } catch (Exception e) {
-            sendLog("❌ Erro durante a conversão: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(null);
-
-        } finally {
-            // 6️⃣ Limpeza
-            if (tempJasper != null && tempJasper.exists()) tempJasper.delete();
-            if (tempJrxml != null && tempJrxml.exists()) tempJrxml.delete();
+            e.printStackTrace(); // Aparecerá nos logs do Railway
+            return ResponseEntity.internalServerError().build();
         }
     }
 }
